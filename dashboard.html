@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EURUSD EA — Backtest Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg:       #0a0e17;
+    --surface:  #111827;
+    --surface2: #1a2235;
+    --border:   #1e2d45;
+    --accent:   #00d4a4;
+    --accent2:  #3b82f6;
+    --red:      #ef4444;
+    --amber:    #f59e0b;
+    --text:     #e2e8f0;
+    --muted:    #64748b;
+    --mono:     'Space Mono', monospace;
+    --sans:     'DM Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 32px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .logo {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--accent);
+    letter-spacing: 0.08em;
+  }
+  .logo span { color: var(--muted); }
+  .header-meta {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    text-align: right;
+  }
+  #period-label { color: var(--text); font-size: 12px; margin-top: 2px; }
+
+  /* ── Upload zone ── */
+  #upload-zone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: calc(100vh - 73px);
+    gap: 16px;
+    padding: 40px;
+  }
+  .upload-box {
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    padding: 48px 64px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    max-width: 480px;
+    width: 100%;
+  }
+  .upload-box:hover { border-color: var(--accent); background: rgba(0,212,164,0.04); }
+  .upload-box .icon { font-size: 36px; margin-bottom: 16px; opacity: 0.5; }
+  .upload-box h2 { font-size: 16px; font-weight: 500; margin-bottom: 8px; }
+  .upload-box p { color: var(--muted); font-size: 13px; line-height: 1.6; }
+  .upload-box input { display: none; }
+  .demo-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 8px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: var(--sans);
+    font-size: 13px;
+    transition: all 0.2s;
+  }
+  .demo-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── Main dashboard ── */
+  #dashboard { display: none; padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
+
+  /* ── KPI row ── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  @media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+
+  .kpi {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent-color, var(--accent));
+  }
+  .kpi-label {
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .kpi-value {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .kpi-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .pos { color: var(--accent); }
+  .neg { color: var(--red); }
+  .neu { color: var(--accent2); }
+
+  /* ── Chart layout ── */
+  .charts-col { display: flex; flex-direction: column; gap: 16px; }
+
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+  }
+  .chart-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .chart-title .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  .chart-wrap { position: relative; }
+
+  /* ── Two-column layout ── */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 16px;
+  }
+  @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+  /* ── Trade log table ── */
+  .table-wrap { overflow-x: auto; max-height: 340px; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead th {
+    position: sticky; top: 0;
+    background: var(--surface2);
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 8px 10px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody tr { border-bottom: 1px solid rgba(30,45,69,0.5); transition: background 0.1s; }
+  tbody tr:hover { background: var(--surface2); }
+  tbody td { padding: 7px 10px; font-family: var(--mono); white-space: nowrap; }
+  .badge {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+  .badge-buy  { background: rgba(0,212,164,0.12); color: var(--accent); }
+  .badge-sell { background: rgba(59,130,246,0.12); color: var(--accent2); }
+  .badge-tp   { background: rgba(0,212,164,0.10); color: var(--accent); }
+  .badge-sl   { background: rgba(239,68,68,0.10);  color: var(--red); }
+  .badge-kill { background: rgba(245,158,11,0.10); color: var(--amber); }
+
+  /* ── Monthly table ── */
+  .month-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 8px;
+  }
+  .month-cell {
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+  }
+  .month-name { font-size: 10px; color: var(--muted); font-family: var(--mono); margin-bottom: 4px; }
+  .month-pnl  { font-family: var(--mono); font-size: 14px; font-weight: 700; }
+  .month-meta { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ── Filters ── */
+  .filters {
+    display: flex; gap: 8px; align-items: center;
+    margin-bottom: 16px; flex-wrap: wrap;
+  }
+  .filter-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 5px 14px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-family: var(--mono);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .filter-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(0,212,164,0.06); }
+
+  /* ── Stat table (right panel) ── */
+  .stat-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 9px 0;
+    border-bottom: 1px solid rgba(30,45,69,0.6);
+    font-size: 12px;
+  }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-label { color: var(--muted); font-family: var(--mono); font-size: 11px; }
+  .stat-val   { font-family: var(--mono); font-weight: 700; }
+</style>
+</head>
+<body>
+
+<!-- ── UPLOAD / LANDING ─────────────────────────────────── -->
+<header>
+  <div class="logo">EURUSD_EA <span>/ backtest dashboard</span></div>
+  <div class="header-meta">
+    <div>EURUSD · M15 + H1</div>
+    <div id="period-label">—</div>
+  </div>
+</header>
+
+<div id="upload-zone">
+  <div class="upload-box" id="drop-zone">
+    <div class="icon">📂</div>
+    <h2>Load backtest results</h2>
+    <p>Drop <code>backtest_results.json</code> here or click to browse.<br>
+       Generated by running <code>python backtest.py</code></p>
+    <input type="file" id="file-input" accept=".json">
+  </div>
+  <button class="demo-btn" id="demo-btn">Load demo data (synthetic)</button>
+</div>
+
+<!-- ── DASHBOARD ────────────────────────────────────────── -->
+<div id="dashboard">
+
+  <!-- KPI row -->
+  <div class="kpi-grid" id="kpi-grid"></div>
+
+  <!-- Equity curve (full width) -->
+  <div class="chart-card">
+    <div class="chart-title"><span class="dot"></span>Equity curve & balance</div>
+    <div class="chart-wrap" style="height:220px">
+      <canvas id="equity-chart"></canvas>
+    </div>
+  </div>
+
+  <!-- Drawdown + Win/Loss dist (two columns) -->
+  <div class="two-col">
+    <div class="chart-card">
+      <div class="chart-title"><span class="dot" style="background:var(--red)"></span>Drawdown %</div>
+      <div class="chart-wrap" style="height:180px">
+        <canvas id="dd-chart"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title"><span class="dot" style="background:var(--accent2)"></span>P&amp;L distribution</div>
+      <div class="chart-wrap" style="height:180px">
+        <canvas id="dist-chart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Monthly P&L + Stats (two columns) -->
+  <div class="two-col">
+    <div class="chart-card">
+      <div class="chart-title"><span class="dot" style="background:var(--amber)"></span>Monthly P&amp;L breakdown</div>
+      <div id="monthly-grid" class="month-grid"></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title"><span class="dot" style="background:var(--accent2)"></span>Detailed statistics</div>
+      <div id="stat-table"></div>
+    </div>
+  </div>
+
+  <!-- Trade log (full width) -->
+  <div class="chart-card" style="margin-top:16px">
+    <div class="chart-title" style="justify-content:space-between">
+      <span style="display:flex;align-items:center;gap:10px">
+        <span class="dot" style="background:var(--muted)"></span>Trade log
+      </span>
+      <div class="filters" style="margin-bottom:0">
+        <button class="filter-btn active" data-filter="all">All</button>
+        <button class="filter-btn" data-filter="tp">TP</button>
+        <button class="filter-btn" data-filter="sl">SL</button>
+        <button class="filter-btn" data-filter="kill_switch">Kill</button>
+        <button class="filter-btn" data-filter="BUY">Long</button>
+        <button class="filter-btn" data-filter="SELL">Short</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table id="trade-table">
+        <thead>
+          <tr>
+            <th>#</th><th>Entry time</th><th>Exit time</th>
+            <th>Dir</th><th>Lots</th><th>Entry</th>
+            <th>SL</th><th>TP</th><th>Outcome</th>
+            <th>P&amp;L</th><th>Balance</th>
+          </tr>
+        </thead>
+        <tbody id="trade-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /dashboard -->
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// DATA LOADING
+// ═══════════════════════════════════════════════════════════
+
+let ALL_TRADES = [];
+
+document.getElementById('drop-zone').addEventListener('click', () =>
+  document.getElementById('file-input').click());
+
+document.getElementById('file-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => initDashboard(JSON.parse(ev.target.result));
+  reader.readAsText(file);
+});
+
+document.getElementById('drop-zone').addEventListener('dragover', e => {
+  e.preventDefault();
+  e.currentTarget.style.borderColor = 'var(--accent)';
+});
+document.getElementById('drop-zone').addEventListener('dragleave', e => {
+  e.currentTarget.style.borderColor = 'var(--border)';
+});
+document.getElementById('drop-zone').addEventListener('drop', e => {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => initDashboard(JSON.parse(ev.target.result));
+  reader.readAsText(file);
+});
+
+document.getElementById('demo-btn').addEventListener('click', () =>
+  initDashboard(generateDemoData()));
+
+// ═══════════════════════════════════════════════════════════
+// DEMO DATA GENERATOR
+// ═══════════════════════════════════════════════════════════
+
+function generateDemoData() {
+  const trades = [];
+  let balance = 10000;
+  const start = new Date('2024-01-01T08:00:00Z');
+  const outcomes = ['tp','tp','sl','tp','sl','tp','tp','sl','tp','sl'];
+  const dirs = ['BUY','SELL','BUY','BUY','SELL','SELL','BUY','SELL','BUY','SELL'];
+  let monthly = {};
+
+  for (let i = 0; i < 120; i++) {
+    const outcome = outcomes[i % outcomes.length];
+    const dir     = dirs[i % dirs.length];
+    const entryT  = new Date(start.getTime() + i * 1.5 * 24 * 3600 * 1000);
+    const exitT   = new Date(entryT.getTime() + 4 * 3600 * 1000);
+    const entry   = 1.0800 + (Math.random() - 0.5) * 0.02;
+    const slDist  = 0.0020;
+    const sl = dir === 'BUY' ? entry - slDist : entry + slDist;
+    const tp = dir === 'BUY' ? entry + slDist * 2 : entry - slDist * 2;
+    const lots = 0.50;
+    let pnl;
+    if (outcome === 'tp')   pnl = slDist * 2 / 0.0001 * 10 * lots - 7;
+    else if (outcome === 'sl') pnl = -slDist / 0.0001 * 10 * lots * 0.5 - 7;
+    else pnl = -slDist / 0.0001 * 10 * lots - 7;
+
+    if (outcome === 'kill_switch') pnl = -(balance * 0.01);
+    balance += pnl;
+
+    const month = entryT.toISOString().slice(0,7);
+    if (!monthly[month]) monthly[month] = {pnl:0,trades:0,wins:0};
+    monthly[month].pnl    += pnl;
+    monthly[month].trades += 1;
+    if (pnl > 0) monthly[month].wins++;
+
+    trades.push({
+      entry_time: entryT.toISOString().slice(0,16).replace('T',' '),
+      exit_time:  exitT.toISOString().slice(0,16).replace('T',' '),
+      direction: dir, lots, entry_price: entry, sl_price: sl, tp_price: tp,
+      pnl: Math.round(pnl*100)/100, outcome,
+      balance_after: Math.round(balance*100)/100
+    });
+  }
+
+  // Equity curve
+  let eq = 10000, pk = 10000;
+  const equity_curve = [];
+  const drawdown_curve = [];
+  const d = new Date('2024-01-01T08:00:00Z');
+  for (let i = 0; i < 8640; i++) {
+    eq += (Math.random() - 0.47) * 3;
+    pk = Math.max(pk, eq);
+    equity_curve.push({ time: d.toISOString().slice(0,16).replace('T',' '),
+                        equity: Math.round(eq*100)/100, balance: Math.round((eq-30)*100)/100 });
+    drawdown_curve.push(Math.round((eq-pk)/pk*10000)/100);
+    d.setMinutes(d.getMinutes()+15);
+  }
+  // Make equity end near final trade balance
+  const finalBalance = trades[trades.length-1].balance_after;
+
+  const pnls = trades.map(t=>t.pnl);
+  const wins = pnls.filter(p=>p>0), losses = pnls.filter(p=>p<=0);
+  const gw = wins.reduce((a,b)=>a+b,0), gl = Math.abs(losses.reduce((a,b)=>a+b,0));
+  const monthly_list = Object.entries(monthly).map(([k,v])=>({
+    month:k, pnl:Math.round(v.pnl*100)/100, trades:v.trades,
+    win_rate: Math.round(v.wins/v.trades*100*10)/10
+  })).sort((a,b)=>a.month.localeCompare(b.month));
+
+  return {
+    initial_balance: 10000, final_balance: Math.round(finalBalance*100)/100,
+    trades, equity_curve, drawdown_curve,
+    stats: {
+      total_trades: trades.length,
+      win_rate: Math.round(wins.length/pnls.length*1000)/10,
+      net_pnl: Math.round((finalBalance-10000)*100)/100,
+      total_return_pct: Math.round((finalBalance-10000)/100*100)/100,
+      profit_factor: Math.round(gw/gl*100)/100,
+      sharpe_ratio: 1.42,
+      max_drawdown_pct: Math.min(...drawdown_curve),
+      avg_win: Math.round(wins.reduce((a,b)=>a+b,0)/wins.length*100)/100,
+      avg_loss: Math.round(losses.reduce((a,b)=>a+b,0)/losses.length*100)/100,
+      largest_win: Math.max(...wins),
+      largest_loss: Math.min(...losses),
+      max_consec_losses: 4,
+      total_tp: trades.filter(t=>t.outcome==='tp').length,
+      total_sl: trades.filter(t=>t.outcome==='sl').length,
+      total_kill: trades.filter(t=>t.outcome==='kill_switch').length,
+      monthly: monthly_list,
+    }
+  };
+}
+
+// ═══════════════════════════════════════════════════════════
+// DASHBOARD INIT
+// ═══════════════════════════════════════════════════════════
+
+let charts = {};
+
+function initDashboard(data) {
+  document.getElementById('upload-zone').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+
+  const s = data.stats;
+  ALL_TRADES = data.trades;
+
+  // Period label
+  if (data.trades.length) {
+    const first = data.trades[0].entry_time;
+    const last  = data.trades[data.trades.length-1].exit_time;
+    document.getElementById('period-label').textContent = `${first.slice(0,10)} → ${last.slice(0,10)}`;
+  }
+
+  renderKPIs(s, data);
+  renderEquityChart(data.equity_curve);
+  renderDDChart(data.drawdown_curve, data.equity_curve);
+  renderDistChart(data.trades);
+  renderMonthly(s.monthly);
+  renderStatTable(s);
+  renderTradeTable(data.trades);
+  initFilters(data.trades);
+}
+
+// ═══════════════════════════════════════════════════════════
+// KPIs
+// ═══════════════════════════════════════════════════════════
+
+function renderKPIs(s, data) {
+  const ret_pos = s.total_return_pct >= 0;
+  const kpis = [
+    { label:'NET RETURN', value: (ret_pos?'+':'')+s.total_return_pct+'%',
+      sub: `$${s.net_pnl>=0?'+':''}${s.net_pnl.toLocaleString()}`,
+      cls: ret_pos?'pos':'neg', color: ret_pos?'var(--accent)':'var(--red)' },
+    { label:'WIN RATE', value: s.win_rate+'%',
+      sub: `${s.total_tp} TP  ·  ${s.total_sl} SL  ·  ${s.total_kill} Kill`,
+      cls:'neu', color:'var(--accent2)' },
+    { label:'PROFIT FACTOR', value: s.profit_factor,
+      sub:`Sharpe ${s.sharpe_ratio}`, cls: s.profit_factor>=1?'pos':'neg',
+      color: s.profit_factor>=1?'var(--accent)':'var(--red)' },
+    { label:'MAX DRAWDOWN', value: s.max_drawdown_pct+'%',
+      sub:`${s.total_trades} total trades`, cls:'neg', color:'var(--red)' },
+    { label:'AVG WIN', value:'$'+s.avg_win, sub:`Largest: $${s.largest_win}`,
+      cls:'pos', color:'var(--accent)' },
+    { label:'AVG LOSS', value:'$'+s.avg_loss, sub:`Worst: $${s.largest_loss}`,
+      cls:'neg', color:'var(--red)' },
+    { label:'FINAL BALANCE', value:'$'+data.final_balance.toLocaleString(),
+      sub:`Started $${data.initial_balance.toLocaleString()}`, cls:'neu', color:'var(--accent2)' },
+    { label:'MAX CONSEC LOSS', value: s.max_consec_losses,
+      sub:`sessions`, cls: s.max_consec_losses>4?'neg':'neu',
+      color: s.max_consec_losses>4?'var(--red)':'var(--accent2)' },
+  ];
+
+  document.getElementById('kpi-grid').innerHTML = kpis.map(k => `
+    <div class="kpi" style="--accent-color:${k.color}">
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-value ${k.cls}">${k.value}</div>
+      <div class="kpi-sub">${k.sub}</div>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// CHARTS
+// ═══════════════════════════════════════════════════════════
+
+const GRID = { color:'rgba(30,45,69,0.8)', lineWidth:0.5 };
+const TICK = { color:'#475569', font:{family:"'Space Mono',monospace",size:9} };
+
+function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+function renderEquityChart(curve) {
+  destroyChart('equity');
+  // Sample every 24 bars (6h intervals) for performance
+  const step = Math.max(1, Math.floor(curve.length / 400));
+  const sampled = curve.filter((_,i) => i % step === 0);
+
+  const labels  = sampled.map(d => d.time.slice(5,10)); // MM-DD
+  const equity  = sampled.map(d => d.equity);
+  const balance = sampled.map(d => d.balance);
+
+  const ctx = document.getElementById('equity-chart').getContext('2d');
+  const grad = ctx.createLinearGradient(0,0,0,220);
+  grad.addColorStop(0,'rgba(0,212,164,0.18)');
+  grad.addColorStop(1,'rgba(0,212,164,0)');
+
+  charts['equity'] = new Chart(ctx, {
+    type:'line',
+    data:{
+      labels,
+      datasets:[
+        { label:'Equity', data:equity, borderColor:'#00d4a4', borderWidth:1.5,
+          fill:true, backgroundColor:grad, pointRadius:0, tension:0.3 },
+        { label:'Balance', data:balance, borderColor:'#3b82f6', borderWidth:1,
+          fill:false, pointRadius:0, tension:0.3, borderDash:[4,3] },
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false, animation:false,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{ labels:{ color:'#64748b', font:{family:"'Space Mono',monospace",size:10},
+                           boxWidth:20, padding:16 }},
+        tooltip:{ backgroundColor:'#111827', borderColor:'#1e2d45', borderWidth:1,
+                  titleColor:'#94a3b8', bodyColor:'#e2e8f0',
+                  titleFont:{family:"'Space Mono',monospace",size:10},
+                  bodyFont:{family:"'Space Mono',monospace",size:11},
+                  callbacks:{ label: ctx => ` $${ctx.raw.toLocaleString(undefined,{minimumFractionDigits:2})}` }}
+      },
+      scales:{
+        x:{ grid:GRID, ticks:{...TICK, maxTicksLimit:12, maxRotation:0} },
+        y:{ grid:GRID, ticks:{...TICK, callback:v=>'$'+v.toLocaleString()} }
+      }
+    }
+  });
+}
+
+function renderDDChart(ddCurve, equityCurve) {
+  destroyChart('dd');
+  const step = Math.max(1, Math.floor(ddCurve.length / 400));
+  const labels = equityCurve.filter((_,i)=>i%step===0).map(d=>d.time.slice(5,10));
+  const data   = ddCurve.filter((_,i)=>i%step===0);
+
+  const ctx  = document.getElementById('dd-chart').getContext('2d');
+  const grad = ctx.createLinearGradient(0,0,0,180);
+  grad.addColorStop(0,'rgba(239,68,68,0.25)');
+  grad.addColorStop(1,'rgba(239,68,68,0)');
+
+  charts['dd'] = new Chart(ctx, {
+    type:'line',
+    data:{ labels, datasets:[{
+      label:'Drawdown %', data,
+      borderColor:'#ef4444', borderWidth:1.2,
+      fill:true, backgroundColor:grad, pointRadius:0, tension:0.2
+    }]},
+    options:{
+      responsive:true, maintainAspectRatio:false, animation:false,
+      plugins:{ legend:{display:false},
+        tooltip:{ backgroundColor:'#111827', borderColor:'#1e2d45', borderWidth:1,
+                  titleColor:'#94a3b8', bodyColor:'#ef4444',
+                  titleFont:{family:"'Space Mono',monospace",size:10},
+                  bodyFont:{family:"'Space Mono',monospace",size:11},
+                  callbacks:{ label: ctx => ` ${ctx.raw.toFixed(2)}%` }}
+      },
+      scales:{
+        x:{ grid:GRID, ticks:{...TICK, maxTicksLimit:10, maxRotation:0} },
+        y:{ grid:GRID, ticks:{...TICK, callback:v=>v+'%'}, reverse:false }
+      }
+    }
+  });
+}
+
+function renderDistChart(trades) {
+  destroyChart('dist');
+  const pnls = trades.map(t=>t.pnl);
+  const min  = Math.floor(Math.min(...pnls)/20)*20;
+  const max  = Math.ceil(Math.max(...pnls)/20)*20;
+  const bins = 20;
+  const size = (max-min)/bins;
+  const counts = Array(bins).fill(0);
+  const colors = [];
+  const labels = [];
+  for (let i=0;i<bins;i++) {
+    const lo = min + i*size;
+    labels.push(lo.toFixed(0));
+    counts[i] = pnls.filter(p=>p>=lo && p<lo+size).length;
+    colors.push(lo+size <= 0 ? 'rgba(239,68,68,0.65)' : 'rgba(0,212,164,0.65)');
+  }
+
+  charts['dist'] = new Chart(document.getElementById('dist-chart'), {
+    type:'bar',
+    data:{ labels, datasets:[{
+      label:'Trades', data:counts, backgroundColor:colors,
+      borderWidth:0, borderRadius:3
+    }]},
+    options:{
+      responsive:true, maintainAspectRatio:false, animation:false,
+      plugins:{ legend:{display:false},
+        tooltip:{ backgroundColor:'#111827', borderColor:'#1e2d45', borderWidth:1,
+                  titleColor:'#94a3b8', bodyColor:'#e2e8f0',
+                  titleFont:{family:"'Space Mono',monospace",size:10},
+                  bodyFont:{family:"'Space Mono',monospace",size:11} }
+      },
+      scales:{
+        x:{ grid:{display:false}, ticks:{...TICK, maxTicksLimit:8} },
+        y:{ grid:GRID, ticks:TICK }
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// MONTHLY
+// ═══════════════════════════════════════════════════════════
+
+function renderMonthly(monthly) {
+  document.getElementById('monthly-grid').innerHTML = monthly.map(m => {
+    const pos = m.pnl >= 0;
+    return `<div class="month-cell">
+      <div class="month-name">${m.month}</div>
+      <div class="month-pnl ${pos?'pos':'neg'}">${pos?'+':''}$${m.pnl.toFixed(0)}</div>
+      <div class="month-meta">${m.trades} trades · ${m.win_rate}% WR</div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// STAT TABLE
+// ═══════════════════════════════════════════════════════════
+
+function renderStatTable(s) {
+  const rows = [
+    ['Total trades',      s.total_trades, 'neu'],
+    ['Win rate',          s.win_rate+'%', s.win_rate>=50?'pos':'neg'],
+    ['Profit factor',     s.profit_factor, s.profit_factor>=1.5?'pos':s.profit_factor>=1?'neu':'neg'],
+    ['Sharpe ratio',      s.sharpe_ratio, s.sharpe_ratio>=1?'pos':'neu'],
+    ['Max drawdown',      s.max_drawdown_pct+'%', 'neg'],
+    ['Avg win',           '$'+s.avg_win, 'pos'],
+    ['Avg loss',          '$'+s.avg_loss, 'neg'],
+    ['Largest win',       '$'+s.largest_win, 'pos'],
+    ['Largest loss',      '$'+s.largest_loss, 'neg'],
+    ['Max consec losses', s.max_consec_losses, s.max_consec_losses>5?'neg':'neu'],
+    ['TP hits',           s.total_tp, 'pos'],
+    ['SL hits',           s.total_sl, 'neg'],
+    ['Kill switch fires', s.total_kill, s.total_kill>0?'neg':'pos'],
+  ];
+
+  document.getElementById('stat-table').innerHTML = rows.map(([label,val,cls]) => `
+    <div class="stat-row">
+      <span class="stat-label">${label}</span>
+      <span class="stat-val ${cls}">${val}</span>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// TRADE TABLE
+// ═══════════════════════════════════════════════════════════
+
+function renderTradeTable(trades) {
+  const tbody = document.getElementById('trade-tbody');
+  tbody.innerHTML = trades.map((t,i) => `
+    <tr>
+      <td style="color:var(--muted)">${i+1}</td>
+      <td>${t.entry_time}</td>
+      <td>${t.exit_time}</td>
+      <td><span class="badge badge-${t.direction.toLowerCase()}">${t.direction}</span></td>
+      <td>${t.lots}</td>
+      <td>${t.entry_price.toFixed(5)}</td>
+      <td>${t.sl_price.toFixed(5)}</td>
+      <td>${t.tp_price.toFixed(5)}</td>
+      <td><span class="badge badge-${t.outcome}">${t.outcome.replace('_',' ').toUpperCase()}</span></td>
+      <td class="${t.pnl>=0?'pos':'neg'}">${t.pnl>=0?'+':''}$${t.pnl.toFixed(2)}</td>
+      <td style="color:var(--muted)">$${t.balance_after.toLocaleString()}</td>
+    </tr>`).join('');
+}
+
+function initFilters(trades) {
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      const f = btn.dataset.filter;
+      const filtered = f === 'all' ? trades
+        : trades.filter(t => t.outcome === f || t.direction === f);
+      renderTradeTable(filtered);
+    });
+  });
+}
+</script>
+</body>
+</html>
